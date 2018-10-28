@@ -1,0 +1,45 @@
+{
+  "name": "solc-vm",
+  "version": "0.0.1",
+  "description": "Solidity compiler - version manager",
+  "main": "index.js",
+  "bin": {
+    "solc-vm": "solc-vm"
+  },
+  "scripts": {
+    "lint": "semistandard",
+    "install": "node download-latest.js",
+    "pretest": "npm run lint",
+    "test": "tape ./test/index.js",
+    "coverage": "istanbul cover node_modules/tape/bin/tape ./test/index.js",
+    "coveralls": "npm run coverage && coveralls <coverage/lcov.info"
+  },
+  "keywords": [
+    "ethereum",
+    "solidity",
+    "compiler"
+  ],
+  "files": [
+    "index.js",
+    "solc-vm",
+    "solc-downloader.js",
+    "solc-manager.js"
+  ],
+  "author": "topcoder",
+  "license": "ISC",
+  "dependencies": {
+    "follow-redirects": "^1.5.8",
+    "memorystream": "^0.3.1",
+    "semver": "^5.5.1",
+    "unzip": "^0.1.11",
+    "targz": "^1.0.1"
+  },
+  "devDependencies": {
+    "coveralls": "^3.0.0",
+    "istanbul": "^0.4.5",
+    "semistandard": "^11.0.0",
+    "tape": "^4.5.1",
+    "tape-spawn": "^1.4.2"
+  },
+  "semistandard": {}
+}

@@ -1,0 +1,199 @@
+#!/usr/bin/env node
+
+// hold on to any exception handlers that existed prior to this script running, we'll be adding them back at the end
+// var originalUncaughtExceptionListeners = process.listeners("uncaughtException");
+
+const pkg = require('./package.json');
+const fs = require('fs');
+const path = require('path');
+const semver = require('semver');
+const { spawn } = require('child_process');
+
+const solcManager = require('./solc-manager');
+const solcDownloader = require('./solc-downloader');
+const getVersionList = solcDownloader.getVersionList;
+const downloadBinary = solcDownloader.downloadBinary;
+const binaryName = solcManager.binaryName;
+
+const binaryDirectory = solcManager.getBinaryDirectory();
+
+function clone(a) {
+  return JSON.parse(JSON.stringify(a));
+}
+var argToPass = clone(process.argv);
+argToPass.shift();
+argToPass.shift();
+
+if (argToPass.length == 0) {
+  abort('Simple usage: solc-vm install, solc-vm ls, solc-vm uninstall, solc-vm using');
+}
+
+if (argToPass[0] == 'using' || argToPass[0] == 'install') {
+  if (argToPass.length > 1 && argToPass[1].match(/^(\d+\.\d+\.\d+)$/)) {
+    let version = argToPass[1];
+    let versions = solcManager.getInstalledVersion();
+    if (!versions.includes(version)) {
+      console.log('Downloading solidity binary version ' + version + ' ...');
+
+      getVersionList(function (list) {
+        list = JSON.parse(list);
+        var wanted = version.match(/^(\d+\.\d+\.\d+)$/)[1];
+        var releaseFileName = list.releases[wanted];
+        if (!releaseFileName) {
+          abort('Version ' + version + ' not found.');
+        }
+
+        let binaryPath = path.join(binaryDirectory, binaryName(version));
+        
+        downloadBinary(binaryPath, wanted, () => {
+          if (argToPass[0] == 'using' && argToPass.length > 2) {
+            argToPass.shift();
+            argToPass.shift();
+            compile(version);
+          }
+          else console.log(version + ' installed');
+        });
+      });
+    }
+    else {
+      if (argToPass[0] == 'using' && argToPass.length > 2) {
+        argToPass.shift();
+        argToPass.shift();
+        compile(version);
+      }
+      else console.log(version + ' is already installed');      
+    }
+  }
+  else {
+    abort('Please provide valid version (x.y.z).');    
+  }
+}
+else if (argToPass[0] == 'uninstall') {
+  if (argToPass.length > 1 && argToPass[1].match(/^(\d+\.\d+\.\d+)$/)) {
+    let version = argToPass[1];
+    let versions = solcManager.getInstalledVersion();
+    if (versions.includes(version)) {
+      solcManager.removeBinary(version);
+      console.log('Version ' + version + ' uninstalled');
+      process.exit(0);
+    }
+    else {
+      abort('Version ' + version + ' is not installed');
+    }
+  }
+  else {
+    abort('Please provide valid version (x.y.z).');    
+  }
+}
+else if (argToPass[0] == 'ls') {
+  let versions = solcManager.getInstalledVersion();
+  versions.forEach(version => {
+    console.log(version);
+  });
+  process.exit(0);
+}
+else {
+  matchPragmaVersion(argToPass[0]);
+}
+
+function matchPragmaVersion(file) {
+
+  let found = fs.readFileSync(file)
+  .toString()
+  .split('\n')
+  .some(function (line) {
+    if (line.startsWith('pragma')) {
+      let split = line.split(' ');
+      if (split[2].endsWith(';') || split[2].endsWith('\r')) {
+        let pragmaVersion = split[2].slice(0, -1);
+        if (split[2].endsWith('\r')) pragmaVersion = split[2].slice(0, -2);
+
+        if (pragmaVersion.match(/^(\d+\.\d+\.\d+)$/)) {
+          // The solidity file accept fixed version only
+          let versions = solcManager.getInstalledVersion();
+          if (!versions.includes(pragmaVersion)) {
+            console.log('Downloading solidity binary version ' + pragmaVersion + ' ...');
+
+            getVersionList(function (list) {
+              list = JSON.parse(list);
+              var wanted = pragmaVersion.match(/^(\d+\.\d+\.\d+)$/)[1];
+              var releaseFileName = list.releases[wanted];
+              if (!releaseFileName) {
+                abort('Version ' + pragmaVersion + ' not found.');
+              }
+
+              let binaryPath = path.join(binaryDirectory, binaryName(pragmaVersion));
+              downloadBinary(binaryPath, wanted, () => {
+                compile(pragmaVersion);
+              });
+            });
+          }
+          else {
+            compile(pragmaVersion);
+          }
+        }
+        else {
+          let availableVersions = solcManager.getInstalledVersion();
+          var found = availableVersions.reverse().some(function(version) {
+            if (semver.satisfies(version, pragmaVersion)) {
+              console.log('Found compatible version ' + version);
+              compile(version);
+              return true;
+            }
+            return false;
+          });
+
+          if (!found) {
+            getVersionList(function (list) {
+              list = JSON.parse(list);
+              found = Object.keys(list.releases).some(function(version) {
+                if (semver.satisfies(version, pragmaVersion)) {
+                  console.log('Found compatible version ' + version + '. Downloading...');
+
+                  var releaseFileName = list.releases[version];
+                  let binaryPath = path.join(binaryDirectory, binaryName(version));
+                  downloadBinary(binaryPath, version, () => {
+                    compile(version);
+                  });
+
+                  return true;
+                }
+                return false;
+              });
+              if (!found) {
+                abort('Compatible version ' + pragmaVersion + ' not found');
+              }
+            });
+          }
+        }        
+        return true;
+      }
+    }
+    return false;
+  });
+  if (!found) compile('latest');
+}
+
+function abort (msg) {
+  console.error(msg || 'Error occured');
+  process.exit(1);
+}
+
+function compile(version) {
+  if (!version) {
+    version = 'latest';
+  }
+  
+  var ls = spawn(solcManager.getBinary(version), argToPass);
+
+  ls.stdout.on('data', (data) => {
+    console.log(`${data}`);
+  });
+  
+  ls.stderr.on('data', (data) => {
+    console.log(`${data}`);
+  });
+  
+  ls.on('close', (code) => {
+  });
+}

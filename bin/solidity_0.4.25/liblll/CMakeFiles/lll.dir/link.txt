@@ -1,0 +1,2 @@
+/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/ar qc liblll.a  CMakeFiles/lll.dir/CodeFragment.cpp.o CMakeFiles/lll.dir/Compiler.cpp.o CMakeFiles/lll.dir/CompilerState.cpp.o CMakeFiles/lll.dir/Parser.cpp.o
+/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/ranlib liblll.a

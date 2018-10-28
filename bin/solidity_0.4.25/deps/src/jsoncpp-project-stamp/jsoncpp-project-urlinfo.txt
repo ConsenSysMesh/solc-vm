@@ -1,0 +1,3 @@
+repository='external project URL'
+module='https://github.com/open-source-parsers/jsoncpp/archive/1.8.4.tar.gz'
+tag='SHA256=c49deac9e0933bcb7044f08516861a2d560988540b23de2ac1ad443b219afdb6'
